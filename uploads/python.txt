@@ -1,0 +1,7 @@
+Python is a high-level programming language.
+
+It is easy to learn.
+
+Flask is used for web development.
+
+Python is widely used in AI, Machine Learning and Data Science.

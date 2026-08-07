@@ -12,6 +12,7 @@ from gemini_ai import (
     generate_flashcards,
     ask_study_assistant
 )
+from note_evaluator import evaluate_notes
 from speech_to_text import transcribe_audio
 from youtube_downloader import download_audio
 from flask import send_file
@@ -291,14 +292,31 @@ def upload():
 
 
 
-        # Generate notes
+        
 
-        start=time.time()
+        # Generate Notes
 
+        start = time.time()
 
         notes = generate_notes(
             transcript
         )
+
+        print(
+            "Gemini Time:",
+            time.time() - start
+        )
+
+        # Evaluate Notes
+        evaluation = evaluate_notes(
+            transcript,
+            notes
+        )
+
+        print("\n===== NOTE EVALUATION =====")
+        print(evaluation)
+        print("===========================\n")
+
         # Generate Quiz
         quiz = generate_quiz(transcript)
 

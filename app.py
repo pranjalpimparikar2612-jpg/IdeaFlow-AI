@@ -606,6 +606,65 @@ def delete_note(note_id):
 
 
 
+
+
+    # ---------------- PARSE QUIZ ---------------- #
+
+
+def parse_quiz(quiz_text):
+    quiz_data = []
+
+    blocks = quiz_text.strip().split("Question:")
+
+    for block in blocks:
+        block = block.strip()
+
+        if not block:
+            continue
+
+        lines = [
+            line.strip()
+            for line in block.splitlines()
+            if line.strip()
+        ]
+
+        if len(lines) < 6:
+            continue
+
+        question = lines[0]
+
+        options = [
+            lines[1],
+            lines[2],
+            lines[3],
+            lines[4]
+        ]
+
+        answer_line = lines[5]
+
+        correct_letter = (
+            answer_line
+            .replace("Answer:", "")
+            .strip()
+            .upper()
+        )
+
+        correct_option = ""
+
+        for option in options:
+            if option.upper().startswith(correct_letter):
+                correct_option = option
+                break
+
+        quiz_data.append({
+            "question": question,
+            "options": options,
+            "answer": correct_option,
+            "answer_letter": correct_letter
+        })
+
+    return quiz_data
+
 # ---------------- QUIZ ---------------- #
 
 @app.route("/quiz/<int:note_id>")
@@ -643,13 +702,12 @@ def quiz(note_id):
         note = cursor.fetchone()
 
         if not note:
-
             conn.close()
             return "Note not found."
 
-        quiz_text = generate_quiz(
-            note["transcript"]
-        )
+        quiz_text = generate_quiz(note["transcript"])
+
+        print("GENERATED QUIZ:")
         print(quiz_text)
 
         cursor.execute(
@@ -659,7 +717,7 @@ def quiz(note_id):
                 note_id,
                 quiz
             )
-            VALUES (?,?)
+            VALUES (?, ?)
             """,
             (
                 note_id,
@@ -671,56 +729,11 @@ def quiz(note_id):
 
     conn.close()
 
-    # ---------------- PARSE QUIZ ---------------- #
+    # Parse quiz using ONE common parser
+    quiz_data = parse_quiz(quiz_text)
 
-    quiz_data = []
-
-    blocks = quiz_text.strip().split("Question:")
-
-    for block in blocks:
-
-        block = block.strip()
-
-        if not block:
-            continue
-
-        lines = [line.strip() for line in block.splitlines() if line.strip()]
-
-        if len(lines) < 6:
-            continue
-
-        question = lines[0]
-
-        options = [
-            lines[1],
-            lines[2],
-            lines[3],
-            lines[4]
-        ]
-
-        answer_line = lines[5]
-
-        correct_letter = answer_line.replace("Answer:", "").strip()
-
-        correct_option = ""
-
-        for option in options:
-
-            if option.startswith(correct_letter):
-
-                correct_option = option
-                break
-
-        quiz_data.append({
-
-            "question": question,
-
-            "options": options,
-
-            "answer": correct_option,
-            "answer_letter": correct_letter
-
-        })
+    print("PARSED QUIZ DATA:")
+    print(quiz_data)
 
     return render_template(
         "quiz.html",
@@ -809,8 +822,6 @@ def quiz_history():
 
 # ---------------- VIEW QUIZ ---------------- #
 
-import re
-
 @app.route("/view_quiz/<int:quiz_id>")
 def view_quiz(quiz_id):
 
@@ -827,6 +838,7 @@ def view_quiz(quiz_id):
     )
 
     row = cursor.fetchone()
+
     conn.close()
 
     if not row:
@@ -834,37 +846,14 @@ def view_quiz(quiz_id):
 
     quiz_text = row["quiz"]
 
-    quiz_data = []
+    # Use the SAME parser used by /quiz/<note_id>
+    quiz_data = parse_quiz(quiz_text)
 
-    pattern = r"\*\*(.*?)\*\*\s*A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*D\)\s*(.*?)\s*\*\*Correct Answer:\s*([A-D])\)"
-
-    matches = re.findall(pattern, quiz_text, re.DOTALL)
-
-    for m in matches:
-
-        correct_letter = m[5].strip()
-
-        options = [
-            "A) "+m[1].strip(),
-            "B) "+m[2].strip(),
-            "C) "+m[3].strip(),
-            "D) "+m[4].strip()
-        ]
-
-        correct_option = next(
-            (opt for opt in options if opt.startswith(correct_letter)),
-            ""
-        )
-
-        quiz_data.append({
-
-            "question": m[0].strip(),
-
-            "options": options,
-            "answer": correct_option,
-            "answer_letter": correct_letter
-
-        })
+    print("VIEW QUIZ ID:", quiz_id)
+    print("QUIZ TEXT:")
+    print(quiz_text)
+    print("PARSED DATA:")
+    print(quiz_data)
 
     return render_template(
         "quiz.html",

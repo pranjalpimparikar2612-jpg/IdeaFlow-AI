@@ -2,227 +2,645 @@
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Voice Assistant - IdeaFlow AI</title>
 
-    <title>Voice Assistant</title>
-
+    <!-- Bootstrap 5.3 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 
-    <style>
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
-        body{
-            background:#f5f7fb;
-            font-family:Poppins,sans-serif;
-        }
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-        .card{
-
-            max-width:800px;
-            margin:60px auto;
-
-            border-radius:20px;
-
-            padding:30px;
-
-            box-shadow:0 10px 25px rgba(0,0,0,.08);
-
-        }
-
-        #speech{
-
-            min-height:120px;
-
-        }
-
-    </style>
-
+    <!-- External Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/voice.style.css') }}">
 </head>
 
 <body>
 
-<div class="card">
+    <!-- Header Navbar -->
+    <nav class="navbar notes-nav py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4 text-white d-flex align-items-center gap-2" href="/dashboard">
+                <span class="brand-icon"><i class="bi bi-mortarboard-fill text-info"></i></span>
+                <span>IdeaFlow <span class="gradient-text">AI</span></span>
+            </a>
 
-<h2 class="mb-4 text-center">
+            <div class="d-flex align-items-center gap-2">
+                <a href="/dashboard" class="btn btn-edu-outline">
+                    <i class="bi bi-arrow-left me-1"></i> Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
 
-🎤 Voice Assistant
+    <div class="container py-4">
 
-</h2>
+        <div class="voice-card">
 
-<div class="mb-3">
+            <!-- Card Title -->
+            <div class="text-center mb-4">
+                <h3 class="fw-bold text-white mb-2 d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi bi-mic-fill text-danger fs-3"></i> Voice Study Assistant
+                </h3>
+                <p class="text-secondary fs-6">Select a lecture, press record, and speak your query</p>
+            </div>
 
-<label class="form-label">
+            <!-- Lecture Selection -->
+            <div class="mb-4">
+                <label class="form-label text-secondary fw-semibold small mb-2">
+                    <i class="bi bi-journal-bookmark-fill text-info me-1"></i> SELECT LECTURE
+                </label>
+                <select id="lecture" class="form-select">
+                    <option value="">Choose a lecture to ask about...</option>
+                    {% for lecture in lectures %}
+                        <option value="{{ lecture.id }}">📖 {{ lecture.lecture_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
-Select Lecture
+            <!-- Start Recording Button -->
+            <button id="start-btn" class="btn btn-record w-100 mb-4 d-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-record-circle-fill fs-5"></i>
+                <span id="btn-text">Start Recording</span>
+            </button>
 
-</label>
+            <!-- User Speech Box -->
+            <div class="mb-4">
+                <label class="form-label text-secondary fw-semibold small mb-2 d-flex align-items-center gap-2">
+                    <i class="bi bi-person-bounding-box text-info"></i> YOU SAID
+                </label>
+                <textarea id="speech" class="form-control" placeholder="Your spoken question will appear here..." readonly></textarea>
+            </div>
 
-<select
-id="lecture"
-class="form-select">
+            <!-- AI Response Box -->
+            <div class="mb-4">
+                <label class="form-label text-secondary fw-semibold small mb-2 d-flex align-items-center gap-2">
+                    <i class="bi bi-robot text-info"></i> AI RESPONSE
+                </label>
+                <textarea id="answer" class="form-control" rows="5" placeholder="AI answer will appear and be spoken back to you..." readonly></textarea>
+            </div>
 
-<option value="">Select Lecture...</option>
+            <!-- Back Link -->
+            <div class="text-center mt-4">
+                <a href="/dashboard" class="btn btn-edu-outline">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+                </a>
+            </div>
 
-{% for lecture in lectures %}
+        </div>
 
-<option value="{{ lecture.id }}">
-{{ lecture.lecture_name }}
-</option>
+    </div>
 
-{% endfor %}
+    <!-- Speech Script -->
+    <script>
+        const startBtn = document.getElementById("start-btn");
+        const btnText = document.getElementById("btn-text");
+        const speechBox = document.getElementById("speech");
+        const answerBox = document.getElementById("answer");
+        const lecture = document.getElementById("lecture");
 
-</select>
+        // Browser Speech Recognition support
+        const SpeechRecognition =
+            window.SpeechRecognition || window.webkitSpeechRecognition;
 
-</div>
+        let recognition = null;
+        let isListening = false;
+        let finalTranscript = "";
+        let shouldRestart = false;
 
-<button
-id="start-btn"
-class="btn btn-danger w-100 mb-4">
+        /*
+        * ---------------------------------------------------------
+        * SPEECH RECOGNITION SETUP
+        * ---------------------------------------------------------
+        */
 
-🎙 Start Recording
+        if (!SpeechRecognition) {
 
-</button>
+            startBtn.disabled = true;
+            btnText.innerText = "Speech Recognition Unavailable";
 
-<label class="fw-bold">
+            answerBox.value =
+                "Speech recognition is not supported in this browser. " +
+                "Please use Google Chrome or Microsoft Edge.";
 
-You Said
+        } else {
 
-</label>
+            recognition = new SpeechRecognition();
 
-<textarea
-id="speech"
-class="form-control"
-readonly>
+            // Recognition settings
+            recognition.lang = "en-US";
 
-</textarea>
+            // Show partial/live results
+            recognition.interimResults = true;
 
-<div class="mt-4">
+            // Allow recognition to continue while the user speaks
+            recognition.continuous = true;
 
-<label class="fw-bold">
+            // Only return the best result
+            recognition.maxAlternatives = 1;
 
-AI Response
 
-</label>
+            /*
+            * ---------------------------------------------------------
+            * START / STOP BUTTON
+            * ---------------------------------------------------------
+            */
 
-<textarea
-id="answer"
-class="form-control"
-rows="6"
-readonly>
-</textarea>
+            startBtn.addEventListener("click", () => {
 
-</div>
+                // If currently listening, stop recording
+                if (isListening) {
+                    stopRecording();
+                    return;
+                }
 
-<div class="text-center mt-4">
+                // Lecture must be selected
+                if (lecture.value === "") {
+                    alert("Please select a lecture first.");
+                    lecture.focus();
+                    return;
+                }
 
-<a href="/dashboard"
-class="btn btn-primary">
-
-← Back to Dashboard
-
-</a>
-
-</div>
-
-</div>
-
-<script>
-
-const startBtn = document.getElementById("start-btn");
-const speechBox = document.getElementById("speech");
-const answerBox = document.getElementById("answer");
-const lecture = document.getElementById("lecture");
-
-// Check browser support
-const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-
-if (!SpeechRecognition) {
-    alert("Your browser does not support Speech Recognition. Please use Google Chrome.");
-} else {
-
-    const recognition = new SpeechRecognition();
-
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    // Start recording
-    startBtn.addEventListener("click", () => {
-
-        if (lecture.value === "") {
-            alert("Please select a lecture first.");
-            return;
-        }
-
-        recognition.start();
-        answerBox.value = "Listening...";
-
-    });
-
-    // When speech is recognized
-    recognition.onresult = async (event) => {
-
-        const question = event.results[0][0].transcript;
-
-        speechBox.value = question;
-        answerBox.value = "Thinking...";
-
-        const formData = new FormData();
-        formData.append("note_id", lecture.value);
-        formData.append("question", question);
-
-        try {
-
-            const response = await fetch("/voice-chat", {
-                method: "POST",
-                body: formData
+                startRecording();
             });
 
-            const data = await response.json();
 
-            answerBox.value = data.answer;
-            speak(data.answer);
+            /*
+            * ---------------------------------------------------------
+            * START RECORDING
+            * ---------------------------------------------------------
+            */
 
-        } catch (error) {
+            function startRecording() {
 
-            answerBox.value = "Error connecting to AI.";
+                if (isListening) {
+                    return;
+                }
 
-            console.error(error);
+                finalTranscript = "";
+                shouldRestart = true;
 
+                speechBox.value = "";
+                answerBox.value = "Listening to your voice...";
+
+                isListening = true;
+
+                startBtn.classList.add("recording");
+                btnText.innerText = "Stop Recording";
+
+                try {
+                    recognition.start();
+                } catch (error) {
+
+                    /*
+                    * Browser can throw an error if start() is called
+                    * while recognition is already active.
+                    */
+                    console.warn("Recognition start warning:", error);
+                }
+            }
+
+
+            /*
+            * ---------------------------------------------------------
+            * STOP RECORDING
+            * ---------------------------------------------------------
+            */
+
+            function stopRecording() {
+
+                shouldRestart = false;
+
+                if (!recognition) {
+                    return;
+                }
+
+                try {
+                    recognition.stop();
+                } catch (error) {
+                    console.warn("Recognition stop warning:", error);
+                }
+
+                isListening = false;
+
+                startBtn.classList.remove("recording");
+                btnText.innerText = "Start Recording";
+
+                /*
+                * Give the final recognition event a moment to arrive
+                * before sending the question.
+                */
+                setTimeout(() => {
+
+                    const question = finalTranscript.trim();
+
+                    if (!question) {
+                        answerBox.value =
+                            "I couldn't hear a question. Please try again.";
+                        return;
+                    }
+
+                    sendQuestion(question);
+
+                }, 300);
+            }
+
+
+            /*
+            * ---------------------------------------------------------
+            * SPEECH RESULT
+            * ---------------------------------------------------------
+            */
+
+            recognition.onresult = (event) => {
+
+                let interimTranscript = "";
+
+                /*
+                * Process every result returned by the browser.
+                */
+                for (
+                    let i = event.resultIndex;
+                    i < event.results.length;
+                    i++
+                ) {
+
+                    const transcript =
+                        event.results[i][0].transcript;
+
+                    if (event.results[i].isFinal) {
+
+                        finalTranscript += transcript + " ";
+
+                    } else {
+
+                        interimTranscript += transcript;
+                    }
+                }
+
+                /*
+                * Show both confirmed and currently-heard speech.
+                *
+                * Example:
+                *
+                * "What is inheritance in Java? [currently hearing...]"
+                */
+                speechBox.value =
+                    finalTranscript +
+                    (interimTranscript
+                        ? interimTranscript
+                        : "");
+            };
+
+
+            /*
+            * ---------------------------------------------------------
+            * RECOGNITION STARTED
+            * ---------------------------------------------------------
+            */
+
+            recognition.onstart = () => {
+
+                isListening = true;
+
+                startBtn.classList.add("recording");
+                btnText.innerText = "Stop Recording";
+
+                answerBox.value = "Listening...";
+            };
+
+
+            /*
+            * ---------------------------------------------------------
+            * RECOGNITION ENDED
+            * ---------------------------------------------------------
+            */
+
+            recognition.onend = () => {
+
+                /*
+                * Some browsers automatically stop recognition after
+                * a short period of silence.
+                *
+                * If the user has NOT pressed Stop, restart it.
+                */
+                if (shouldRestart) {
+
+                    try {
+                        recognition.start();
+                    } catch (error) {
+                        console.warn(
+                            "Recognition restart warning:",
+                            error
+                        );
+                    }
+
+                    return;
+                }
+
+                isListening = false;
+
+                startBtn.classList.remove("recording");
+                btnText.innerText = "Start Recording";
+            };
+
+
+            /*
+            * ---------------------------------------------------------
+            * SPEECH RECOGNITION ERRORS
+            * ---------------------------------------------------------
+            */
+
+            recognition.onerror = (event) => {
+
+                console.error(
+                    "Speech Recognition Error:",
+                    event.error
+                );
+
+                /*
+                * no-speech is common and doesn't necessarily mean
+                * the microphone is broken.
+                */
+                if (event.error === "no-speech") {
+
+                    answerBox.value =
+                        "I couldn't hear you clearly. " +
+                        "Please speak a little louder and try again.";
+
+                    return;
+                }
+
+
+                /*
+                * Microphone could not be accessed.
+                */
+                if (event.error === "audio-capture") {
+
+                    shouldRestart = false;
+                    isListening = false;
+
+                    startBtn.classList.remove("recording");
+                    btnText.innerText = "Start Recording";
+
+                    answerBox.value =
+                        "I couldn't access your microphone. " +
+                        "Please check your microphone connection and browser permissions.";
+
+                    return;
+                }
+
+
+                /*
+                * Microphone permission denied.
+                */
+                if (event.error === "not-allowed") {
+
+                    shouldRestart = false;
+                    isListening = false;
+
+                    startBtn.classList.remove("recording");
+                    btnText.innerText = "Start Recording";
+
+                    answerBox.value =
+                        "Microphone permission was denied. " +
+                        "Please allow microphone access in your browser settings.";
+
+                    return;
+                }
+
+
+                /*
+                * Browser/network speech service problem.
+                */
+                if (event.error === "network") {
+
+                    shouldRestart = false;
+                    isListening = false;
+
+                    startBtn.classList.remove("recording");
+                    btnText.innerText = "Start Recording";
+
+                    answerBox.value =
+                        "Speech recognition could not connect. " +
+                        "Please check your internet connection and try again.";
+
+                    return;
+                }
+
+
+                /*
+                * Generic error
+                */
+                answerBox.value =
+                    "Speech recognition error: " +
+                    event.error +
+                    ". Please try again.";
+            };
+
+
+            /*
+            * ---------------------------------------------------------
+            * SEND QUESTION TO FLASK
+            * ---------------------------------------------------------
+            */
+
+            async function sendQuestion(question) {
+
+                /*
+                * Show final recognized question
+                */
+                speechBox.value = question;
+
+                answerBox.value = "Thinking...";
+
+                /*
+                * Disable button while AI is processing
+                */
+                startBtn.disabled = true;
+                btnText.innerText = "Processing...";
+
+                const formData = new FormData();
+
+                formData.append(
+                    "note_id",
+                    lecture.value
+                );
+
+                formData.append(
+                    "question",
+                    question
+                );
+
+                try {
+
+                    const response = await fetch("/voice-chat", {
+                        method: "POST",
+                        body: formData
+                    });
+
+
+                    /*
+                    * Check HTTP response
+                    */
+                    if (!response.ok) {
+
+                        throw new Error(
+                            "Server returned HTTP " +
+                            response.status
+                        );
+                    }
+
+
+                    const data = await response.json();
+
+
+                    /*
+                    * Make sure the backend actually returned
+                    * an answer.
+                    */
+                    if (!data.answer) {
+
+                        throw new Error(
+                            "The server returned an empty answer."
+                        );
+                    }
+
+
+                    /*
+                    * Display AI response
+                    */
+                    answerBox.value = data.answer;
+
+
+                    /*
+                    * Speak AI response aloud
+                    */
+                    speak(data.answer);
+
+                } catch (error) {
+
+                    console.error(
+                        "Voice chat error:",
+                        error
+                    );
+
+                    answerBox.value =
+                        "Error connecting to AI. " +
+                        "Please check your connection and try again.";
+
+                } finally {
+
+                    startBtn.disabled = false;
+                    btnText.innerText = "Start Recording";
+                    startBtn.classList.remove("recording");
+
+                    isListening = false;
+                }
+            }
+
+
+            /*
+            * ---------------------------------------------------------
+            * TEXT-TO-SPEECH
+            * ---------------------------------------------------------
+            */
+
+            
+            function speak(text) {
+
+                if (!("speechSynthesis" in window)) {
+                    return;
+                }
+
+                // Clean Markdown formatting before speaking
+                let cleanText = text;
+
+                // Remove headings: #, ##, ###, etc.
+                cleanText = cleanText.replace(/^\s*#{1,6}\s*/gm, "");
+
+                // Remove bold formatting
+                cleanText = cleanText.replace(/\*\*(.*?)\*\*/g, "$1");
+
+                // Remove italic formatting
+                cleanText = cleanText.replace(/\*(.*?)\*/g, "$1");
+
+                // Remove underscore formatting
+                cleanText = cleanText.replace(/__(.*?)__/g, "$1");
+                cleanText = cleanText.replace(/_(.*?)_/g, "$1");
+
+                // Remove backticks
+                cleanText = cleanText.replace(/`+/g, "");
+
+                // Remove bullet symbols
+                cleanText = cleanText.replace(/^\s*[-*+]\s+/gm, "");
+
+                // Remove blockquote symbol
+                cleanText = cleanText.replace(/^\s*>\s?/gm, "");
+
+                // Remove horizontal rules
+                cleanText = cleanText.replace(/^\s*([-*_]){3,}\s*$/gm, "");
+
+                // Remove any remaining # or *
+                cleanText = cleanText.replace(/[#*]/g, "");
+
+                // Clean extra spaces
+                cleanText = cleanText.replace(/[ \t]+/g, " ");
+
+                // Clean excessive blank lines
+                cleanText = cleanText.replace(/\n{3,}/g, "\n\n");
+
+                cleanText = cleanText.trim();
+
+                // Stop anything currently being spoken
+                window.speechSynthesis.cancel();
+
+                const speech = new SpeechSynthesisUtterance(cleanText);
+
+                speech.lang = "en-US";
+                speech.rate = 0.95;
+                speech.pitch = 1;
+                speech.volume = 1;
+
+                window.speechSynthesis.speak(speech);
+            }
+
+
+            /*
+            * ---------------------------------------------------------
+            * PAGE CLEANUP
+            * ---------------------------------------------------------
+            */
+
+            window.addEventListener("beforeunload", () => {
+
+                shouldRestart = false;
+
+                if (recognition && isListening) {
+
+                    try {
+                        recognition.stop();
+                    } catch (error) {
+                        console.warn(error);
+                    }
+                }
+
+                if ("speechSynthesis" in window) {
+                    window.speechSynthesis.cancel();
+                }
+            });
         }
+    </script>
 
-    };
-
-    recognition.onerror = function(event) {
-
-        answerBox.value = "Speech Recognition Error: " + event.error;
-
-    };
-
-}
-
-</script>
-
-<script>
-
-function speak(text){
-
-    const speech = new SpeechSynthesisUtterance(text);
-
-    speech.lang = "en-US";
-    speech.rate = 1;
-    speech.pitch = 1;
-
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(speech);
-
-}
-
-</script>
-
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>

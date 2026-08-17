@@ -32,7 +32,7 @@ from flask import redirect, url_for
 
 app = Flask(__name__)
 
-app.secret_key = "ideaflow_ai_secret_key"
+app.secret_key = os.getenv("SECRET_KEY")
 
 
 # Create upload folder if not exists
